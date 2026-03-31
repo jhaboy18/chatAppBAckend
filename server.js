@@ -15,12 +15,24 @@ dotenv.config();
 const app = express();
 const server = http.createServer(app);
 
-// Socket.io setup
+
+// ✅ Allowed origins (frontend + local)
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://shonaaaa.netlify.app"
+];
+
+
+// ✅ Socket.io setup (FIXED)
 const io = new Server(server, {
-  cors: { origin: "http://localhost:5173", credentials: true }
+  cors: {
+    origin: allowedOrigins,
+    methods: ["GET", "POST"]
+  }
 });
 
-// Socket.io JWT Auth middleware
+
+// ✅ Socket.io JWT Auth middleware
 io.use((socket, next) => {
   const token = socket.handshake.auth.token;
   if (!token) return next(new Error("Authentication error"));
@@ -34,24 +46,21 @@ io.use((socket, next) => {
   }
 });
 
-// Socket.io connection
+
+// ✅ Socket.io connection
 io.on("connection", (socket) => {
   console.log("User connected:", socket.userId);
 
-  // Receive message from client
   socket.on("send_message", async (msg) => {
     try {
-      // Save message in DB
       const message = await Message.create({
         sender: socket.userId,
         content: msg.content || "",
         file: msg.file || ""
       });
 
-      // Populate sender info (name + profilePic)
       const populatedMessage = await message.populate("sender", "name profilePic");
 
-      // Emit message to all clients
       io.emit("receive_message", populatedMessage);
     } catch (err) {
       console.error("Socket message error:", err.message);
@@ -63,22 +72,33 @@ io.on("connection", (socket) => {
   });
 });
 
-// Middleware
+
+// ✅ Middleware
 app.use(express.json());
+
 app.use(cors({
-  origin: "http://localhost:5173",
-  credentials: true
+  origin: function(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("CORS not allowed"));
+    }
+  },
+  methods: ["GET", "POST", "PUT", "DELETE"]
 }));
 
-// REST routes
+
+// ✅ Routes
 app.get("/", (req, res) => res.send("Shona API running 🚀"));
 app.use('/api/shona', shonarouter);
 app.use("/api/upload", uploadRouter);
 app.use("/api/chat", chatRouter); 
 
-// MongoDB connection
+
+// ✅ MongoDB
 shonadb();
 
-// Start server
-const port = 8000;
+
+// ✅ Server start
+const port = process.env.PORT || 8000;
 server.listen(port, () => console.log(`Shona server running on port ${port}`));
