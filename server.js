@@ -1,104 +1,125 @@
-import express from 'express';
-import cors from 'cors';
-import dotenv from 'dotenv';
-import http from 'http';
-import { Server } from 'socket.io';
-import { shonadb } from './shonaKamemory/db.shona.js';
-import shonarouter from './shonaKaRastaa/shonaka1stRasta.routes.js';
-import { Message } from './ShonaModel/chat.model.js'; 
-import jwt from 'jsonwebtoken';
-import uploadRouter from './shonaKaRastaa/upload.route.js';
-import chatRouter from "./shonaKaRastaa/chat.routes.js";
+import express from "express";
+import cors from "cors";
+import dotenv from "dotenv";
+import http from "http";
+import { Server } from "socket.io";
+import jwt from "jsonwebtoken";
+
+import shonarouter from "./shonaKaRastaa/shonaka1stRasta.routes.js";
+import uploadRouter from "./shonaKaRastaa/upload.route.js";
 
 dotenv.config();
 
 const app = express();
 const server = http.createServer(app);
 
-
-// ✅ Allowed origins (frontend + local)
 const allowedOrigins = [
   "http://localhost:5173",
-  "https://shonaaaa.netlify.app"
+  "https://shonaaaa.netlify.app",
 ];
 
+app.use(express.json());
 
-// ✅ Socket.io setup (FIXED)
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("CORS not allowed"));
+      }
+    },
+  })
+);
+
 const io = new Server(server, {
   cors: {
     origin: allowedOrigins,
-    methods: ["GET", "POST"]
-  }
+    methods: ["GET", "POST"],
+  },
 });
 
+// 🔥 TEMP CHAT STORAGE
+let messages = [];
+const MESSAGE_LIFETIME = 1 * 60 * 1000;
 
-// ✅ Socket.io JWT Auth middleware
+// 🔐 JWT AUTH
 io.use((socket, next) => {
   const token = socket.handshake.auth.token;
-  if (!token) return next(new Error("Authentication error"));
+  if (!token) return next(new Error("Auth error"));
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     socket.userId = decoded.id;
     next();
   } catch {
-    next(new Error("Authentication error"));
+    next(new Error("Auth error"));
   }
 });
 
-
-// ✅ Socket.io connection
 io.on("connection", (socket) => {
   console.log("User connected:", socket.userId);
 
-  socket.on("send_message", async (msg) => {
-    try {
-      const message = await Message.create({
-        sender: socket.userId,
-        content: msg.content || "",
-        file: msg.file || ""
-      });
+  socket.on("join", (userData) => {
+    socket.user = {
+      id: socket.userId,
+      name: userData.name,
+      profilePic: userData.profilePic,
+    };
 
-      const populatedMessage = await message.populate("sender", "name profilePic");
+    const validMessages = messages.filter(
+      (msg) => Date.now() - msg.createdAt < MESSAGE_LIFETIME
+    );
 
-      io.emit("receive_message", populatedMessage);
-    } catch (err) {
-      console.error("Socket message error:", err.message);
-    }
+    socket.emit("load_messages", validMessages);
+  });
+
+  socket.on("send_message", (msg) => {
+    const message = {
+      id: Date.now(),
+      sender: {
+        id: socket.userId,
+        name: msg.name,
+        profilePic: msg.profilePic,
+      },
+      content: msg.content || "",
+      file: msg.file || "",
+      createdAt: Date.now(),
+    };
+
+    messages.push(message);
+
+    io.emit("receive_message", message);
+
+    // ⏳ AUTO DELETE
+    setTimeout(() => {
+      messages = messages.filter((m) => m.id !== message.id);
+      io.emit("delete_message", message.id);
+    }, MESSAGE_LIFETIME);
   });
 
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.userId);
+
+    const userMsgs = messages.filter(
+      (msg) => msg.sender.id === socket.userId
+    );
+
+    messages = messages.filter(
+      (msg) => msg.sender.id !== socket.userId
+    );
+
+    userMsgs.forEach((msg) => {
+      io.emit("delete_message", msg.id);
+    });
   });
 });
 
-
-// ✅ Middleware
-app.use(express.json());
-
-app.use(cors({
-  origin: function(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error("CORS not allowed"));
-    }
-  },
-  methods: ["GET", "POST", "PUT", "DELETE"]
-}));
-
-
-// ✅ Routes
-app.get("/", (req, res) => res.send("Shona API running 🚀"));
-app.use('/api/shona', shonarouter);
+// ✅ routes (login/signup same)
+app.use("/api/shona", shonarouter);
 app.use("/api/upload", uploadRouter);
-app.use("/api/chat", chatRouter); 
 
+app.get("/", (req, res) => res.send("Server running 🚀"));
 
-// ✅ MongoDB
-shonadb();
-
-
-// ✅ Server start
-const port = process.env.PORT || 8000;
-server.listen(port, () => console.log(`Shona server running on port ${port}`));
+const PORT = process.env.PORT || 8000;
+server.listen(PORT, () => console.log(`Server running on ${PORT}`));
