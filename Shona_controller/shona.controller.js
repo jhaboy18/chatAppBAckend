@@ -2,14 +2,14 @@ import { Shona } from "../ShonaModel/user.shona.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
-// 🔑 Token generate
+/
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
     expiresIn: "7d"
   });
 };
 
-// 🟢 SIGNUP
+
 export const signup = async (req, res) => {
   try {
     const { name, email, password, profilePic, bio } = req.body;
@@ -54,12 +54,12 @@ export const signup = async (req, res) => {
   }
 };
 
-// 🔵 LOGIN
+
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // check user
+    // 
     const user = await Shona.findOne({ email });
     if (!user) {
       return res.status(400).json({ msg: "Invalid email or password" });
@@ -71,7 +71,7 @@ export const login = async (req, res) => {
       return res.status(400).json({ msg: "Invalid email or password" });
     }
 
-    // update online status
+    // 
     user.isOnline = true;
     user.lastSeen = new Date();
     await user.save();
@@ -92,7 +92,7 @@ export const login = async (req, res) => {
   }
 };
 
-// 🟡 GET CURRENT USER
+// 
 export const getMe = async (req, res) => {
   try {
     const user = await Shona.findById(req.user.id).select("-password");
@@ -104,7 +104,7 @@ export const getMe = async (req, res) => {
   }
 };
 
-// 🔴 LOGOUT (optional - online status update)
+// 
 export const logout = async (req, res) => {
   try {
     const user = await Shona.findById(req.user.id);
