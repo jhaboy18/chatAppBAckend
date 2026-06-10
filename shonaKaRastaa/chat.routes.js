@@ -4,7 +4,7 @@ import { Message } from "../ShonaModel/chat.model.js";
 
 const router = express.Router();
 
-// GET previous messages
+// 
 router.get("/", shonaKoprotectkro, async (req, res) => {
   try {
     const messages = await Message.find()
