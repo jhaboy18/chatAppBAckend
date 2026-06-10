@@ -39,11 +39,11 @@ const io = new Server(server, {
   },
 });
 
-// 🔥 TEMP CHAT STORAGE
+// 
 let messages = [];
 const MESSAGE_LIFETIME = 1 * 60 * 1000;
 
-// 🔐 JWT AUTH
+// 
 io.use((socket, next) => {
   const token = socket.handshake.auth.token;
   if (!token) return next(new Error("Auth error"));
@@ -91,7 +91,7 @@ io.on("connection", (socket) => {
 
     io.emit("receive_message", message);
 
-    // ⏳ AUTO DELETE
+    // 
     setTimeout(() => {
       messages = messages.filter((m) => m.id !== message.id);
       io.emit("delete_message", message.id);
@@ -115,7 +115,7 @@ io.on("connection", (socket) => {
   });
 });
 
-// ✅ routes (login/signup same)
+// 
 app.use("/api/shona", shonarouter);
 app.use("/api/upload", uploadRouter);
 
